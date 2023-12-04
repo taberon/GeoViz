@@ -11,7 +11,7 @@
     <RootNamespace>GeometryVisualizer</RootNamespace>
     <AssemblyName>GeoViz</AssemblyName>
     <StartupObject>GeometryVisualizer.MainForm</StartupObject>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
     <UpgradeBackupLocation>
@@ -54,6 +54,9 @@
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>GeoViz_Icon.ico</ApplicationIcon>
+  </PropertyGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
@@ -72,6 +75,8 @@
   <ItemGroup>
     <Compile Include="Geometry\Vector2.cs" />
     <Compile Include="Geometry\Vector3.cs" />
+    <Compile Include="Parser\VertexParser.cs" />
+    <Compile Include="Parser\VertexSet.cs" />
     <Compile Include="PlotterGDI.cs">
     </Compile>
     <Compile Include="MainForm.cs">
@@ -98,5 +103,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="GeoViz_Icon.ico" />
   </ItemGroup>
 </Project>
