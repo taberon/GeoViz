@@ -17,9 +17,19 @@ namespace GeometryVisualizer
          get { return this.plotter; }
       }
 
-      public List<PointF> Points
+      public List<Vector3> Points
       {
          get { return this.plotter.Points; }
+      }
+
+      public List<int> Lines
+      {
+         get { return this.plotter.Lines; }
+      }
+
+      public List<VertexSet> VertexSets
+      {
+         get { return this.plotter.VertexSets; }
       }
 
       bool enableFreeNavigation;
@@ -126,7 +136,7 @@ namespace GeometryVisualizer
          {
             PointF worldPt = this.plotter.PointToWorld( e.Location );
 
-            this.plotter.Points.Add( worldPt );
+            this.plotter.Points.Add( new Vector3( worldPt.X, worldPt.Y, 0f ) );
 
             //this.plotter.AutoScaleForPoints();
 
@@ -182,13 +192,39 @@ namespace GeometryVisualizer
          int nearestIndex = -1;
          float nearestDist = float.MaxValue;
 
-         for( int i = 0; i < this.plotter.Points.Count; ++i )
+         bool HitTestVertexSet( VertexSet vertSet, out int hitIndex )
          {
-            float currDist = Vector2.DistanceSq( worldPoint, this.plotter.Points[i] );
-            if( currDist < nearestDist && currDist <= minHitDistSq )
+            hitIndex = -1;
+
+            for( int i = 0; i < vertSet.Vertices.Count; ++i )
             {
-               nearestIndex = i;
-               nearestDist = currDist;
+               Vector3 vert3D = vertSet.Vertices[i];
+               Vector2 vert2D = new Vector2( vert3D.X, vert3D.Y );
+
+               float currDist = Vector2.DistanceSq( worldPoint, vert2D );
+               if( currDist < nearestDist && currDist <= minHitDistSq )
+               {
+                  hitIndex = i;
+                  nearestDist = currDist;
+               }
+            }
+
+            return hitIndex != -1;
+         }
+
+         if( HitTestVertexSet( this.plotter.DefaultPlotSet, out nearestIndex ) )
+         {
+            this.plotter.SelectedSet = this.plotter.DefaultPlotSet;
+         }
+         else
+         {
+            for( int i = 0; i < this.plotter.VertexSets.Count; ++i )
+            {
+               if( HitTestVertexSet( this.plotter.VertexSets[i], out nearestIndex ) )
+               {
+                  this.plotter.SelectedSet = this.plotter.VertexSets[i];
+                  break;
+               }
             }
          }
 
@@ -209,11 +245,12 @@ namespace GeometryVisualizer
                // for fun, test round-trip conversion -- yeah, same -- looks good
                PointF screenPoint = this.plotter.PointToScreen( worldPoint );
 
+               VertexSet prevSet = this.plotter.SelectedSet;
                // hit test points for nearest -- within a minimum tolerance
                int hitPointIndex = HitTestNearestPoint( worldPoint );
 
-               // check if selected point changed
-               if( hitPointIndex != this.plotter.SelectedIndex )
+               // check if selected index changed
+               if( hitPointIndex != this.plotter.SelectedIndex || prevSet != this.plotter.SelectedSet )
                {
                   // set selected point on plotter
                   this.plotter.SelectedIndex = hitPointIndex;
@@ -232,30 +269,45 @@ namespace GeometryVisualizer
 
       public void DeleteSelectedPoint()
       {
-         if( this.plotter.SelectedIndex >= 0 && this.plotter.SelectedIndex < this.plotter.Points.Count )
+         if( this.plotter.SelectedSet != null && this.plotter.SelectedIndex >= 0 && this.plotter.SelectedIndex < this.plotter.SelectedSet.Count )
          {
             // remove point from list
-            this.Points.RemoveAt( this.plotter.SelectedIndex );
+            this.plotter.SelectedSet.Vertices.RemoveAt( this.plotter.SelectedIndex );
             // set selected point as previous index
             AdvanceSelectedPoint( -1 );
          }
       }
 
+      public void ClearAll()
+      {
+         // clear all vertex sets
+         this.plotter.Points.Clear();
+         this.plotter.Lines.Clear();
+         this.plotter.VertexSets.Clear();
+         this.plotter.SelectedIndex = -1;
+         this.plotter.SelectedSet = null;
+      }
+
       public void AdvanceSelectedPoint( int dir = 1 )
       {
+         if( this.plotter.SelectedSet == null )
+         {
+            this.plotter.SelectedSet = this.plotter.DefaultPlotSet;
+         }
+
          // get current selected point index
          int currIndex = this.plotter.SelectedIndex;
          // advance by specified direction/amount
          currIndex += dir;
 
          // bounds check
-         if( currIndex >= this.plotter.Points.Count )
+         if( currIndex >= this.plotter.SelectedSet.Count )
             currIndex = 0;
          else if( currIndex < 0 )
-            currIndex = this.plotter.Points.Count - 1;
+            currIndex = this.plotter.SelectedSet.Count - 1;
 
          // check for empty point collection
-         if( this.plotter.Points.Count == 0 )
+         if( this.plotter.SelectedSet.Count == 0 )
             currIndex = -1;
 
          // set selected point
@@ -274,7 +326,7 @@ namespace GeometryVisualizer
          {
             case Keys.Back:
             {
-               //DeleteSelectedPoint();
+               DeleteSelectedPoint();
                break;
             }
             case Keys.Left:
