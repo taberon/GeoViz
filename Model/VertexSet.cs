@@ -7,30 +7,6 @@ using MetalHelix.Geometry;
 
 namespace GeometryVisualizer
 {
-   public class Face
-   {
-      List<int> indices;
-      public List<int> Indices
-      {
-         get { return this.indices; }
-      }
-
-      public Face()
-      {
-         this.indices = new List<int>();
-      }
-   }
-
-   public class Segment
-   {
-      public int Start;
-      public int End;
-   }
-
-   public class Edge
-   {
-
-   }
 
    public class VertexSet
    {
@@ -44,7 +20,10 @@ namespace GeometryVisualizer
 
       public int FaceCount { get { return this.faces.Count; } }
 
-      //List<int> lines; // ..?
+      List<Segment> lines;
+      public List<Segment> Lines { get { return this.lines; } }
+
+      public int LineCount { get { return this.lines.Count; } }
 
       /// <summary> Gets or sets whether this set of vertices should be drawn connected as a polyline. </summary>
       public bool IsPolyline { get; set; }
@@ -56,6 +35,10 @@ namespace GeometryVisualizer
       /// <summary> Gets whether the vertices are used as 2D coordinates -- ignoring the Z component. </summary>
       public bool Is2D { get; set; }
 
+      // TODO: define bools as flags..?
+
+      public Color PointColor { get; set; }
+
       public Color LineColor { get; set; }
 
       public Color FillColor { get; set; }
@@ -64,6 +47,21 @@ namespace GeometryVisualizer
       {
          this.vertices = new List<Vector3>();
          this.faces = new List<Face>();
+         this.lines = new List<Segment>();
+      }
+
+      public VertexSet( VertexSet source )
+      {
+         this.vertices = new List<Vector3>( source.vertices );
+         this.faces = new List<Face>( source.faces );
+         this.lines = new List<Segment>( source.lines );
+
+         this.IsPolyline = source.IsPolyline;
+         this.IsClosed = source.IsClosed;
+         this.Is2D = source.Is2D;
+         this.PointColor  = source.PointColor;
+         this.LineColor = source.LineColor;
+         this.FillColor = source.FillColor;
       }
 
       /// <summary> Add a single vertex specifying an X, Y, and Z value. </summary>
@@ -75,7 +73,7 @@ namespace GeometryVisualizer
 
       /// <summary> Add a single vertex using values from a list of float values. </summary>
       /// <param name="floatList"></param>
-      public void AddVertex( List<float> floatList )
+      public void AddVertex( IList<float> floatList )
       {
          Vector3 vert = new Vector3();
          for( int i = 0; i < 3 && i < floatList.Count; ++i )
@@ -105,6 +103,7 @@ namespace GeometryVisualizer
             if( this.vertices[i].Z != 0f )
             {
                hasZCoords = true;
+               break;
             }
          }
          this.Is2D = !hasZCoords;
@@ -113,18 +112,29 @@ namespace GeometryVisualizer
       /// <summary> Add multiple vertices by taking every two or three floats from a continuous list.  </summary>
       /// <param name="floatList"> List of float values. </param>
       /// <param name="pairHint"> Indicates whether vertices should be 2D or 3D sets of floats. </param>
-      public void AddVertices( List<float> floatList, int pairHint = 2 )
+      /// <returns> Number of vertices added. </returns>
+      public int AddVertices( List<float> floatList, int pairHint = 2 )
       {
+         int verticesAdded = 0;
+
          if( floatList.Count % pairHint != 0 )
          {
             // break-up continuous array of floats based on specified pairing number
-            // ...
+
+            float[] floatArray = floatList.ToArray();
+            for( int i = 0; i < floatArray.Length; i += pairHint )
+            {
+               ArraySegment<float> currVertFloats = new ArraySegment<float>( floatArray, i, pairHint );
+               AddVertex( currVertFloats );
+            }
          }
+
+         return verticesAdded;
       }
 
       public string GenerateText()
       {
-         System.Text.StringBuilder text = new StringBuilder();
+         StringBuilder text = new StringBuilder();
 
          if( this.IsPolyline )
          {
@@ -150,7 +160,7 @@ namespace GeometryVisualizer
          // check if custom faces are defined
          // ...
 
-         // check if custom lines/edges are defined
+         // check if custom lines/segments are defined
          // ...
 
          if( this.IsPolyline )

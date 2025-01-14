@@ -6,7 +6,7 @@ namespace MetalHelix.Geometry
    /// <summary>
    /// 2 component floating point vector structure.
    /// </summary>
-   public struct Vector2
+   public struct Vector2 : IEquatable<Vector2>
    {
       public float X;
       public float Y;
@@ -148,6 +148,33 @@ namespace MetalHelix.Geometry
          return new Vector2( vector.X / scale, vector.Y / scale );
       }
 
+      public static bool operator ==( Vector2 left, Vector2 right )
+      {
+         return left.Equals( right );
+      }
+
+      public static bool operator !=( Vector2 left, Vector2 right )
+      {
+         return !left.Equals( right );
+      }
+
+      public bool Equals( Vector2 other )
+      {
+         return this.X == other.X && this.Y == other.Y;
+      }
+
+      public override bool Equals( object obj )
+      {
+         if( obj is Vector2 vector )
+            return Equals( vector );
+
+         return base.Equals( obj );
+      }
+
+      public override int GetHashCode()
+      {
+         return this.X.GetHashCode() ^ this.Y.GetHashCode();
+      }
 
       public static readonly Vector2 Zero = new Vector2();
       public static readonly Vector2 UnitX = new Vector2( 1f, 0f );

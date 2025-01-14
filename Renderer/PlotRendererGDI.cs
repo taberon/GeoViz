@@ -6,7 +6,19 @@ using MetalHelix.Geometry;
 
 namespace GeometryVisualizer
 {
-   public class PlotterGDI
+   public abstract class PlotRenderer
+   {
+
+      public abstract void Draw( Graphics grfx );
+
+      public abstract PointF PointToWorld( Point screenPoint );
+
+      public abstract PointF PointToScreen( PointF worldPoint );
+
+
+   }
+
+   public class PlotRendererGDI : PlotRenderer
    {
       #region Fields and Properties
 
@@ -88,60 +100,11 @@ namespace GeometryVisualizer
          set { this.gridDivisionMinor = value; }
       }
 
-      VertexSet defaultSet;
-      /// <summary> Get the default plot set. </summary>
-      public VertexSet DefaultPlotSet
+      PlotData plotData;
+      public PlotData PlotData
       {
-         get { return this.defaultSet; }
-      }
-
-      Face defaultFace;
-      /// <summary> Get the default plot face -- index list. </summary>
-      public Face DefaultPlotFace
-      {
-         get { return this.defaultFace; }
-      }
-
-      /// <summary> Collection of points to be drawn. </summary>
-      public List<Vector3> Points
-      {
-         get { return this.defaultSet.Vertices; }
-      }
-
-      /// <summary> Collection of line indices to be drawn. </summary>
-      public List<int> Lines // int[][] -- use plain array get/set for short-hand def of "mini" (degenerate) faces..?
-      {
-         get { return this.defaultFace.Indices; }
-      }
-
-      List<VertexSet> vertexSets;
-      /// <summary> Collection of custom VertexSet instances to be drawn. </summary>
-      public List<VertexSet> VertexSets
-      {
-         get { return this.vertexSets; }
-      }
-
-      VertexSet selectedSet;
-      /// <summary> Gets or sets the currently selected VertexSet. </summary>
-      public VertexSet SelectedSet
-      {
-         get { return this.selectedSet; }
-         set { this.selectedSet = value; }
-      }
-
-      int selectedIndex;
-      /// <summary> Gets or sets a single selected point, to be drawn in a different highlight color. </summary>
-      public int SelectedIndex
-      {
-         get
-         {
-            // validate the selected index with actual point count
-            if( this.selectedSet != null && this.selectedIndex >= this.selectedSet.Count )
-               this.selectedIndex = -1;
-
-            return this.selectedIndex;
-         }
-         set { this.selectedIndex = value; }
+         get { return this.plotData; }
+         set { this.plotData = value; }
       }
 
       bool drawAxis = true;
@@ -164,110 +127,18 @@ namespace GeometryVisualizer
 
       #region Construction
 
-      public PlotterGDI()
+      public PlotRendererGDI( PlotData sourcePlotData = null )
       {
          this.plotScale = new PointF( 1f, 1f );
          this.plotCenter = new PointF( 0f, 0f );
          this.viewSize = new Size( 100, 100 );
 
-         this.defaultSet = new VertexSet();
-         this.defaultFace = new Face();
-         this.defaultSet.Faces.Add( this.defaultFace );
-         this.vertexSets = new List<VertexSet>();
-
-         this.selectedSet = this.defaultSet;
-         this.selectedIndex = -1;
+         this.plotData = sourcePlotData ?? new PlotData();
       }
 
       #endregion Construction
 
       #region Drawing
-
-      RectangleF CalculateVertexBounds( List<Vector3> vertices )
-      {
-         Vector3 min = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
-         Vector3 max = new Vector3( float.MinValue, float.MinValue, float.MinValue );
-
-         foreach( Vector3 vertex in vertices )
-         {
-            if( vertex.X < min.X )
-               min.X = vertex.X;
-            if( vertex.X > max.X )
-               max.X = vertex.X;
-
-            if( vertex.Y < min.Y )
-               min.Y = vertex.Y;
-            if( vertex.Y > max.Y )
-               max.Y = vertex.Y;
-
-            if( vertex.Z < min.Z )
-               min.Z = vertex.Z;
-            if( vertex.Z > max.Z )
-               max.Z = vertex.Z;
-         }
-
-         // TODO: use a 3d bounding-box...
-         RectangleF bounds = RectangleF.FromLTRB( min.X, min.Y, max.X, max.Y );
-         return bounds;
-      }
-
-      RectangleF GetAllVertexBounds()
-      {
-         RectangleF allBounds = CalculateVertexBounds( this.defaultSet.Vertices );
-
-         foreach( VertexSet set in this.vertexSets )
-         {
-            RectangleF setBounds = CalculateVertexBounds( set.Vertices );
-
-            float minX = Math.Min( allBounds.Left, setBounds.Left );
-            float maxX = Math.Max( allBounds.Right, setBounds.Right );
-            float minY = Math.Min( allBounds.Top, setBounds.Top );
-            float maxY = Math.Max( allBounds.Bottom, setBounds.Bottom );
-
-            allBounds.X = minX;
-            allBounds.Width = maxX - minX;
-            allBounds.Y = minY;
-            allBounds.Height = maxY - minY;
-         }
-
-         return allBounds;
-      }
-
-      /// <summary> Automatically set visualization scale for current points. </summary>
-      public void AutoScaleForPoints()
-      {
-         RectangleF bounds = GetAllVertexBounds();
-
-         // ensure bounds are valid -- not empty and not having width or height of infinity
-         if( ( bounds.Width == 0f && bounds.Height == 0f )
-            || float.IsInfinity( bounds.Width ) || float.IsInfinity( bounds.Height ) )
-         {
-            bounds = new RectangleF( -1f, -1f, 11f, 11f ); // set default bounds
-         }
-         else // inflate bounds to ensure visible contents
-         {
-            bounds.Inflate( bounds.Width * .1f, bounds.Height * .1f );
-         }
-
-         // calculate scale from contained points
-         float xScale = this.viewSize.Width / bounds.Width;
-         float yScale = this.viewSize.Height / bounds.Height;
-
-         // check if aspect ratio should be retained
-         if( this.maintainAspect )
-         {
-            if( xScale < yScale )
-               yScale = xScale;
-            else
-               xScale = yScale;
-         }
-
-         // set the current plot scale
-         this.plotScale = new PointF( xScale, yScale );
-
-         // reset view center to middle of bounds
-         this.plotCenter = new PointF( bounds.Left + bounds.Width / 2f, bounds.Top + bounds.Height / 2f );
-      }
 
       void SetupTransform( Graphics grfx )
       {
@@ -281,7 +152,7 @@ namespace GeometryVisualizer
          grfx.TranslateTransform( -this.plotCenter.X, -this.plotCenter.Y );
       }
 
-      public void Draw( Graphics grfx )
+      public override void Draw( Graphics grfx )
       {
          SetupTransform( grfx );
 
@@ -377,12 +248,12 @@ namespace GeometryVisualizer
          Pen linePen = new Pen( Color.RoyalBlue, pixelSizeAvg * 2f );
 
          // draw default vertex set faces/lines
-         DrawSetFaceLines( grfx, linePen, this.defaultSet );
+         DrawSetFaceLines( grfx, linePen, this.plotData.DefaultPlotSet );
 
          // draw vertex set faces/lines
-         for( int i = 0; i < this.vertexSets.Count; ++i )
+         for( int i = 0; i < this.plotData.VertexSets.Count; ++i )
          {
-            DrawSetFaceLines( grfx, linePen, this.vertexSets[i] );
+            DrawSetFaceLines( grfx, linePen, this.plotData.VertexSets[i] );
          }
 
          linePen.Dispose();
@@ -400,17 +271,18 @@ namespace GeometryVisualizer
          Pen selectedPen = new Pen( Color.DeepSkyBlue, 0f );
 
          // draw default vertex set points
-         DrawSetPoints( grfx, this.defaultSet, pointRadiusX, pointRadiusY, defaultBrush, selectedBrush, selectedPen );
+         DrawSetPoints( grfx, this.plotData.DefaultPlotSet, pointRadiusX, pointRadiusY, defaultBrush, selectedBrush, selectedPen );
 
          // draw vertex set points
-         for( int i = 0; i < this.vertexSets.Count; ++i )
+         for( int i = 0; i < this.plotData.VertexSets.Count; ++i )
          {
-            DrawSetPoints( grfx, this.vertexSets[i], pointRadiusX, pointRadiusY, defaultBrush, selectedBrush, selectedPen );
+            DrawSetPoints( grfx, this.plotData.VertexSets[i], pointRadiusX, pointRadiusY, defaultBrush, selectedBrush, selectedPen );
          }
 
          // release brush resources
          defaultBrush.Dispose();
          selectedBrush.Dispose();
+         selectedPen.Dispose();
       }
 
       void DrawSetFaceLines( Graphics grfx, Pen linePen, VertexSet vertexSet )
@@ -462,7 +334,7 @@ namespace GeometryVisualizer
 
       private void DrawSetPoints( Graphics grfx, VertexSet vertexSet, float pointRadiusX, float pointRadiusY, Brush defaultBrush, Brush selectedBrush, Pen selectedPen )
       {
-         bool isSelectedSet = this.selectedSet == vertexSet;
+         bool isSelectedSet = this.plotData.SelectedSet == vertexSet;
 
          Brush activeBrush = null;
          PointF pt;
@@ -470,7 +342,7 @@ namespace GeometryVisualizer
          // draw points
          for( int i = 0; i < vertexSet.Vertices.Count; ++i )
          {
-            activeBrush = isSelectedSet && i == this.selectedIndex ? selectedBrush : defaultBrush;
+            activeBrush = isSelectedSet && i == this.plotData.SelectedIndex ? selectedBrush : defaultBrush;
 
             pt = vertexSet.Vertices[i].ToPointF();
 
@@ -479,7 +351,7 @@ namespace GeometryVisualizer
             else
                grfx.FillEllipse( activeBrush, pt.X - pointRadiusX, pt.Y - pointRadiusY, pointRadiusX * 2, pointRadiusY * 2 );
 
-            if( isSelectedSet && i == this.selectedIndex )
+            if( isSelectedSet && i == this.plotData.SelectedIndex )
             {
                grfx.DrawEllipse( selectedPen, pt.X - pointRadiusX * 2, pt.Y - pointRadiusY * 2, pointRadiusX * 4, pointRadiusY * 4 );
             }
@@ -490,7 +362,7 @@ namespace GeometryVisualizer
 
       #region Point Conversion
 
-      public PointF PointToWorld( Point screenPoint )
+      public override PointF PointToWorld( Point screenPoint )
       {
          // offset point relative to the screen center
          float worldPointX = screenPoint.X - this.viewSize.Width / 2f;
@@ -507,7 +379,7 @@ namespace GeometryVisualizer
          return new PointF( worldPointX, worldPointY );
       }
 
-      public PointF PointToScreen( PointF worldPoint )
+      public override PointF PointToScreen( PointF worldPoint )
       {
          // translate point by current view center
          float screenPointX = worldPoint.X - this.plotCenter.X;

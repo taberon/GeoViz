@@ -9,10 +9,13 @@ namespace GeometryVisualizer
 {
    public class MainForm : Form
    {
-      const string AppName = "Geometry Visualizer v0.67";
-      const string AppDate = "23 May 2021";
+      const string AppName = "Geometry Visualizer v0.70";
+      const string AppDate = "21 June 2024";
 
-      PlotView2D plotView;
+      //PlotView2D plotView;
+      Control plotControl;
+      IPlotView PlotView { get { return (IPlotView)this.plotControl; } }
+
       StatusStrip statusBar;
       ToolStripLabel statusBounds;
       ToolStripLabel statusSize;
@@ -25,6 +28,9 @@ namespace GeometryVisualizer
       MenuItem menuItem_Axis;
       MenuItem menuItem_Grid;
       MenuItem menuItem_MaintainAspect;
+      MenuItem menuItem_View2D;
+      MenuItem menuItem_View3D;
+
       MenuItem menuItem_PointsEdit;
       MenuItem menuItem_PointsPaste;
       MenuItem menuItem_PointsClear;
@@ -34,10 +40,8 @@ namespace GeometryVisualizer
 
       public MainForm()
       {
-         // create plot view control
-         this.plotView = new PlotView2D();
-         this.plotView.Dock = DockStyle.Fill;
-         this.plotView.Parent = this;
+         // create and set default plot view control
+         SetPlotView( new PlotView2D() );
 
          // update title text
          this.Text = AppName;
@@ -82,13 +86,34 @@ namespace GeometryVisualizer
          this.statusBar.Items.Add( this.statusMouseCoords );
          this.statusBounds.Text = "{X: 0, Y: 0}";
 
-
-         // handle mouse move for plot view control to update status bar
-         this.plotView.MouseMove += PlotView_MouseMove;
-
          UpdateStatus();
 
          InitializeMenu();
+      }
+
+      void SetPlotView( IPlotView plotViewControl )
+      {
+         IPlotView prevPlotView = null;
+         if( this.plotControl != null )
+         {
+            this.plotControl.Parent = null;
+            prevPlotView = this.PlotView;
+            this.plotControl.MouseMove -= PlotView_MouseMove;
+         }
+
+         this.plotControl = (Control)plotViewControl;
+         this.plotControl.Dock = DockStyle.Fill;
+         this.plotControl.Parent = this;
+
+         if( prevPlotView != null )
+         {
+            // TODO: restore plot view data and options..?
+            //this.PlotView.PlotData = prevPlotView.PlotData;
+            //this.PlotView.PlotOptions = prevPlotView.PlotOptions;
+         }
+
+         // handle mouse move for plot view control to update status bar
+         this.plotControl.MouseMove += PlotView_MouseMove;
       }
 
       private void PlotView_MouseMove( object sender, MouseEventArgs e )
@@ -98,13 +123,13 @@ namespace GeometryVisualizer
 
       protected override void OnLoad( EventArgs e )
       {
-         // load default point data
-         this.plotView.Points.Add( new Vector3( .3f, .1f, 0f ) );
-         this.plotView.Points.Add( new Vector3( .8f, .3f, 0f ) );
-         this.plotView.Points.Add( new Vector3( -.2f, .4f, 0f ) );
-         this.plotView.Points.Add( new Vector3( -.4f, .2f, 0f ) );
-         this.plotView.Points.Add( new Vector3( -.8f, -.4f, 0f ) );
-         this.plotView.Plotter.DefaultPlotSet.AutoSet2D();
+         /*/ load default point data
+         this.PlotView.PlotData.Points.Add( new Vector3( .3f, .1f, 0f ) );
+         this.PlotView.PlotData.Points.Add( new Vector3( .8f, .3f, 0f ) );
+         this.PlotView.PlotData.Points.Add( new Vector3( -.2f, .4f, 0f ) );
+         this.PlotView.PlotData.Points.Add( new Vector3( -.4f, .2f, 0f ) );
+         this.PlotView.PlotData.Points.Add( new Vector3( -.8f, -.4f, 0f ) );
+         this.PlotView.PlotData.DefaultPlotSet.AutoSet2D();
          //*/
 
          /*/ add random points
@@ -115,10 +140,10 @@ namespace GeometryVisualizer
          //*/
 
          // set default best-fit view for data
-         this.plotView.BestFitView();
+         this.PlotView.BestFitView();
 
          // subscribe to plot view changed event
-         this.plotView.PlotViewChanged += PlotView_PlotViewChanged;
+         this.PlotView.PlotViewChanged += PlotView_PlotViewChanged;
 
          // update status text
          UpdateStatus();
@@ -166,6 +191,12 @@ namespace GeometryVisualizer
          this.menuItem_MaintainAspect = viewMenu.MenuItems.Add( "Maintain Aspect", MenuItemClick );
          this.menuItem_MaintainAspect.Checked = true; // set default true
 
+         viewMenu.MenuItems.Add( "-" );
+         this.menuItem_View2D = new MenuItem( "2D", MenuItemClick, Shortcut.Ctrl2 );
+         viewMenu.MenuItems.Add( this.menuItem_View2D );
+         this.menuItem_View2D.Checked = true;
+         this.menuItem_View3D = new MenuItem( "3D", MenuItemClick, Shortcut.Ctrl3 );
+         viewMenu.MenuItems.Add( this.menuItem_View3D );
 
          MenuItem helpMenu = new MenuItem( "Help" );
          this.Menu.MenuItems.Add( helpMenu );
@@ -176,30 +207,47 @@ namespace GeometryVisualizer
       void MenuItemClick( object sender, EventArgs e )
       {
          bool redraw = false;
+         bool bestFit = false;
 
          MenuItem clickItem = (MenuItem)sender;
 
          if( clickItem == this.menuItem_BestFit )
          {
-            this.plotView.BestFitView();
+            bestFit = true;
             redraw = true;
          }
          else if( clickItem == this.menuItem_Axis )
          {
             clickItem.Checked = !clickItem.Checked;
-            this.plotView.Plotter.DrawAxis = clickItem.Checked;
+            this.PlotView.PlotOptions.DrawAxis = clickItem.Checked;
             redraw = true;
          }
          else if( clickItem == this.menuItem_Grid )
          {
             clickItem.Checked = !clickItem.Checked;
-            this.plotView.Plotter.DrawGrid = clickItem.Checked;
+            this.PlotView.PlotOptions.DrawGrid = clickItem.Checked;
             redraw = true;
          }
          else if( clickItem == this.menuItem_MaintainAspect )
          {
             clickItem.Checked = !clickItem.Checked;
-            this.plotView.Plotter.MaintainAspect = clickItem.Checked;
+            this.PlotView.PlotOptions.MaintainAspect = clickItem.Checked;
+            redraw = true;
+         }
+         else if( clickItem == this.menuItem_View2D && !clickItem.Checked )
+         {
+            this.menuItem_View2D.Checked = true;
+            this.menuItem_View3D.Checked = false;
+            SetPlotView( new PlotView2D() );
+            bestFit = true;
+            redraw = true;
+         }
+         else if( clickItem == this.menuItem_View3D && !clickItem.Checked )
+         {
+            this.menuItem_View2D.Checked = false;
+            this.menuItem_View3D.Checked = true;
+            SetPlotView( new PlotView3D() );
+            bestFit = true;
             redraw = true;
          }
          else if( clickItem == this.menuItem_PointsEdit )
@@ -208,8 +256,8 @@ namespace GeometryVisualizer
             //if( this.plotView.Points.Count > 0 )
             //this.pointEditor.Points = this.plotView.Points;
             List<VertexSet> newSets = new List<VertexSet>();
-            newSets.Add( this.plotView.Plotter.DefaultPlotSet );
-            newSets.AddRange( this.plotView.VertexSets );
+            newSets.Add( this.PlotView.PlotData.DefaultPlotSet );
+            newSets.AddRange( this.PlotView.PlotData.VertexSets );
             this.pointEditor.VertexSets = newSets;
             this.pointEditor.Show();
          }
@@ -220,27 +268,40 @@ namespace GeometryVisualizer
             {
                string clipText = Clipboard.GetText();
                this.pointEditor.SetPointText( clipText );
-               this.plotView.Invalidate();
+               this.plotControl.Invalidate();
             }
          }
          else if( clickItem == this.menuItem_PointsClear )
          {
             // update points in editor window
-            this.plotView.ClearAll();
+            this.PlotView.PlotData.ClearAll();
+
+            // notify of plot view change
+            //this.PlotView.OnPlotViewChanged();
+
+            // request redraw of plot view
+            //this.Invalidate();
+            this.plotControl.Invalidate();
+
             redraw = true;
          }
          else if( clickItem == this.menuItem_PointDelete )
          {
             // request to deleted selected point
-            this.plotView.DeleteSelectedPoint();
+            this.PlotView.PlotData.DeleteSelectedPoint();
+            this.plotControl.Invalidate();
+            UpdateStatus();
          }
          else if( clickItem == this.menuItem_About )
          {
             MessageBox.Show( string.Join( Environment.NewLine, AppName, AppDate, "Created by Taber", "with a computer" ), AppName );
          }
 
+         if( bestFit )
+            this.PlotView.BestFitView();
+
          if( redraw )
-            this.plotView.Invalidate();
+            this.plotControl.Invalidate();
       }
 
       #endregion Main Menu
@@ -261,16 +322,18 @@ namespace GeometryVisualizer
          //this.plotView.Plotter.Lines.Clear();
          //this.plotView.Plotter.Lines.AddRange( this.pointEditor.Lines );
 
-         this.plotView.Plotter.Points.Clear();
-         this.plotView.Plotter.Lines.Clear();
-         this.plotView.VertexSets.Clear();
-         this.plotView.VertexSets.AddRange( this.pointEditor.VertexSets );
+         this.PlotView.PlotData.Points.Clear();
+         this.PlotView.PlotData.Lines.Clear();
+         this.PlotView.PlotData.DefaultPlotFace.Indices.Clear();
+         this.PlotView.PlotData.DefaultPlotSet.Faces.Clear();
+         this.PlotView.PlotData.VertexSets.Clear();
+         this.PlotView.PlotData.VertexSets.AddRange( this.pointEditor.VertexSets );
 
          // update scale for new points
-         this.plotView.BestFitView();
+         this.PlotView.BestFitView();
 
          // request redraw of plot view
-         this.plotView.Invalidate();
+         this.plotControl.Invalidate();
 
          // Note: change to plotView will trigger PlotViewChange, and so automatically refersh status info
 
@@ -280,20 +343,20 @@ namespace GeometryVisualizer
 
       void UpdateStatus()
       {
-         PlotterGDI plotter = this.plotView.Plotter;
+         PlotRenderer plotter = this.PlotView.PlotRenderer;
 
          // update the status Bounds
-         this.statusBounds.Text = string.Format( "X: [{0:G3}, {1:G3}] - Y: [{2:G3}, {3:G3}]", plotter.PlotMinX, plotter.PlotMaxX, plotter.PlotMinY, plotter.PlotMaxY );
+         this.statusBounds.Text = this.PlotView.GetPlotStatusBounds();
 
          // update status Size
-         this.statusSize.Text = string.Format( "{0:G3}x{1:G3}", plotter.PlotSize.Width, plotter.PlotSize.Height );
+         this.statusSize.Text = this.PlotView.GetPlotStatusSize();
 
          // set selected point -- if any
          string selectedPointString = "[-]: ---";
-         if( this.plotView.Plotter.SelectedIndex != -1 && this.plotView.Plotter.SelectedSet != null )
+         if( this.PlotView.PlotData.SelectedIndex != -1 && this.PlotView.PlotData.SelectedSet != null )
          {
-            int selectedIndex = this.plotView.Plotter.SelectedIndex;
-            VertexSet selectedSet = this.plotView.Plotter.SelectedSet;
+            int selectedIndex = this.PlotView.PlotData.SelectedIndex;
+            VertexSet selectedSet = this.PlotView.PlotData.SelectedSet;
             if( selectedIndex < selectedSet.Vertices.Count )
             {
                Vector3 selectedVert = selectedSet.Vertices[selectedIndex];

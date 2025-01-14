@@ -5,7 +5,7 @@ namespace MetalHelix.Geometry
    /// <summary>
    /// 3 component floating point vector structure.
    /// </summary>
-   public struct Vector3
+   public struct Vector3 : IEquatable<Vector3>
    {
       public float X;
       public float Y;
@@ -170,7 +170,6 @@ namespace MetalHelix.Geometry
          return distSq;
       }
 
-
       public static Vector3 operator +( Vector3 left, Vector3 right )
       {
          return new Vector3( left.X + right.X, left.Y + right.Y, left.Z + right.Z );
@@ -208,6 +207,33 @@ namespace MetalHelix.Geometry
          return new Vector3( vector.X / scale, vector.Y / scale, vector.Z / scale );
       }
 
+      public static bool operator ==( Vector3 left, Vector3 right )
+      {
+         return left.Equals( right );
+      }
+
+      public static bool operator !=( Vector3 left, Vector3 right )
+      {
+         return !left.Equals( right );
+      }
+
+      public bool Equals( Vector3 other )
+      {
+         return this.X == other.X && this.Y == other.Y && this.Z == other.Z;
+      }
+
+      public override bool Equals( object obj )
+      {
+         if( obj is Vector3 vector )
+            return Equals( vector );
+
+         return base.Equals( obj );
+      }
+
+      public override int GetHashCode()
+      {
+         return this.X.GetHashCode() ^ this.Y.GetHashCode() ^ this.Z.GetHashCode();
+      }
 
       public static readonly Vector3 Zero = new Vector3();
       public static readonly Vector3 UnitX = new Vector3( 1f, 0f, 0f );

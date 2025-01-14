@@ -425,7 +425,7 @@ namespace GeometryVisualizer
             for( int i = 0; i < VertexParser.ParseErrors.Count; ++i )
             {
                VertexParser.ParseErrorInfo errInfo = VertexParser.ParseErrors[i];
-               AddTextHighlight( errInfo.Index, errInfo.Length, Color.Red, FontStyle.Bold );
+               AddTextHighlight( errInfo.Position, errInfo.Length, Color.Red, FontStyle.Bold );
             }
             VertexParser.ClearErrors();
          }

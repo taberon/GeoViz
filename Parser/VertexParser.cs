@@ -8,13 +8,13 @@ namespace GeometryVisualizer
    {
       public struct ParseErrorInfo
       {
-         public int Index;
+         public int Position;
          public int Length;
          // type ..? (error, warning..?)
 
-         public ParseErrorInfo( int index, int length )
+         public ParseErrorInfo( int position, int length )
          {
-            this.Index = index;
+            this.Position = position;
             this.Length = length;
          }
       }
@@ -55,7 +55,7 @@ namespace GeometryVisualizer
 
          StringBuilder currWordString = new StringBuilder();
 
-         void NextFloat()
+         void EmitFloat()
          {
             // emit current float value
             if( currFloatString.Length > 0 && float.TryParse( currFloatString.ToString(), out float floatVal ) )
@@ -70,10 +70,10 @@ namespace GeometryVisualizer
             exponentNotation = false;
          }
 
-         void NextVertex()
+         void EmitVertex()
          {
             // check to emit current float value
-            NextFloat();
+            EmitFloat();
 
             // emit current vertex (list of floats) -- if at least 2 or more floats
             if( currFloatList.Count > 1 )
@@ -85,10 +85,10 @@ namespace GeometryVisualizer
             currFloatList.Clear();
          }
 
-         void NextVertexSet()
+         void EmitVertexSet()
          {
             // check to emit current vertex
-            NextVertex();
+            EmitVertex();
 
             // emit current vertex set (vertex loop)
             if( currVertexSet.Count > 0 )
@@ -101,6 +101,7 @@ namespace GeometryVisualizer
             // reset current vertex set parse state
             currVertexSet.IsPolyline = false;
             currVertexSet.IsClosed = false;
+            // TODO: reset colors..?
          }
 
          char GetMatchingBrace( char braceChar )
@@ -143,7 +144,7 @@ namespace GeometryVisualizer
                   }
                   else
                   {
-                     NextFloat();
+                     EmitFloat();
                   }
                   break;
                }
@@ -159,7 +160,7 @@ namespace GeometryVisualizer
                   }
                   else
                   {
-                     NextFloat();
+                     EmitFloat();
                   }
                   break;
                }
@@ -175,7 +176,7 @@ namespace GeometryVisualizer
                   }
                   else
                   {
-                     NextFloat();
+                     EmitFloat();
                   }
                   break;
                }
@@ -184,14 +185,14 @@ namespace GeometryVisualizer
                case '\t':
                {
                   // (don't need to handle these chars explicitly -- could just be handled by 'default' case...)
-                  NextFloat();
+                  EmitFloat();
                   break;
                }
                // newline -- delimit vertices
                case '\n':
                case '\r':
                {
-                  NextVertex();
+                  EmitVertex();
                   break;
                }
                // track parenthesis/brace groups
@@ -203,7 +204,7 @@ namespace GeometryVisualizer
                   braceStack.Push( c );
 
                   // ensure new vertex on opening brace
-                  NextVertex();
+                  EmitVertex();
 
                   // check outer-most brace type to set vertex set property
                   if( braceStack.Count == 1 )
@@ -240,7 +241,7 @@ namespace GeometryVisualizer
                   if( braceStack.Peek() == openingBrace )
                   {
                      braceStack.Pop();
-                     NextVertex();
+                     EmitVertex();
                   }
                   else // parse error -- brace mismatch
                   {
@@ -251,7 +252,7 @@ namespace GeometryVisualizer
                   if( braceStack.Count == 0 )
                   {
                      // top-level grouping reached, start new polygon
-                     NextVertexSet();
+                     EmitVertexSet();
                   }
                   break;
                }
@@ -259,14 +260,14 @@ namespace GeometryVisualizer
                // all other characters, delimit floats
                default:
                {
-                  NextFloat();
+                  EmitFloat();
                   break;
                }
             }
          }
 
          // ensure current working vertex set is emitted
-         NextVertexSet();
+         EmitVertexSet();
 
          return vertexSets;
       }
