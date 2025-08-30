@@ -3,12 +3,14 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Collections.Generic;
 
+using MetalHelix.Geometry;
+
 namespace GeometryVisualizer
 {
    public class MainForm : Form
    {
-      const string AppName = "Geometry Visualizer v0.56";
-      const string AppDate = "16 Oct 2018";
+      const string AppName = "Geometry Visualizer v0.67";
+      const string AppDate = "23 May 2021";
 
       PlotView2D plotView;
       StatusStrip statusBar;
@@ -97,18 +99,19 @@ namespace GeometryVisualizer
       protected override void OnLoad( EventArgs e )
       {
          // load default point data
-         this.plotView.Points.Add( new PointF( .3f, .1f ) );
-         this.plotView.Points.Add( new PointF( .8f, .3f ) );
-         this.plotView.Points.Add( new PointF( -.2f, .4f ) );
-         this.plotView.Points.Add( new PointF( -.4f, .2f ) );
-         this.plotView.Points.Add( new PointF( -.8f, -.4f ) );
+         this.plotView.Points.Add( new Vector3( .3f, .1f, 0f ) );
+         this.plotView.Points.Add( new Vector3( .8f, .3f, 0f ) );
+         this.plotView.Points.Add( new Vector3( -.2f, .4f, 0f ) );
+         this.plotView.Points.Add( new Vector3( -.4f, .2f, 0f ) );
+         this.plotView.Points.Add( new Vector3( -.8f, -.4f, 0f ) );
+         this.plotView.Plotter.DefaultPlotSet.AutoSet2D();
          //*/
 
          /*/ add random points
          int pointCount = 100;
          Random r = new Random( 0 );
          for( int i = 0; i < pointCount; ++i )
-            this.plotView.Points.Add( new PointF( r.Next( -10, 10 ), r.Next( -10, 10 ) ) );
+            this.plotView.Points.Add( new Vector3( r.Next( -10, 10 ), r.Next( -10, 10 ), r.Next(-1, 1)) );
          //*/
 
          // set default best-fit view for data
@@ -202,7 +205,12 @@ namespace GeometryVisualizer
          else if( clickItem == this.menuItem_PointsEdit )
          {
             // update points in editor window
-            this.pointEditor.Points = this.plotView.Points;
+            //if( this.plotView.Points.Count > 0 )
+            //this.pointEditor.Points = this.plotView.Points;
+            List<VertexSet> newSets = new List<VertexSet>();
+            newSets.Add( this.plotView.Plotter.DefaultPlotSet );
+            newSets.AddRange( this.plotView.VertexSets );
+            this.pointEditor.VertexSets = newSets;
             this.pointEditor.Show();
          }
          else if( clickItem == this.menuItem_PointsPaste )
@@ -218,7 +226,7 @@ namespace GeometryVisualizer
          else if( clickItem == this.menuItem_PointsClear )
          {
             // update points in editor window
-            this.plotView.Points.Clear();
+            this.plotView.ClearAll();
             redraw = true;
          }
          else if( clickItem == this.menuItem_PointDelete )
@@ -248,8 +256,15 @@ namespace GeometryVisualizer
       void PointsChangedHandler( object sender, EventArgs e )
       {
          // update vizualizer with modified points
-         this.plotView.Points.Clear();
-         this.plotView.Points.AddRange( this.pointEditor.Points );
+         //this.plotView.Points.Clear();
+         //this.plotView.Points.AddRange( this.pointEditor.Points );
+         //this.plotView.Plotter.Lines.Clear();
+         //this.plotView.Plotter.Lines.AddRange( this.pointEditor.Lines );
+
+         this.plotView.Plotter.Points.Clear();
+         this.plotView.Plotter.Lines.Clear();
+         this.plotView.VertexSets.Clear();
+         this.plotView.VertexSets.AddRange( this.pointEditor.VertexSets );
 
          // update scale for new points
          this.plotView.BestFitView();
@@ -275,11 +290,18 @@ namespace GeometryVisualizer
 
          // set selected point -- if any
          string selectedPointString = "[-]: ---";
-         if( this.plotView.Plotter.SelectedIndex != -1 )
+         if( this.plotView.Plotter.SelectedIndex != -1 && this.plotView.Plotter.SelectedSet != null )
          {
             int selectedIndex = this.plotView.Plotter.SelectedIndex;
-            PointF selectedPoint = this.plotView.Plotter.Points[selectedIndex];
-            selectedPointString = string.Format( "[{0}]: {1:G3}, {2:G3}", selectedIndex, selectedPoint.X, selectedPoint.Y );
+            VertexSet selectedSet = this.plotView.Plotter.SelectedSet;
+            if( selectedIndex < selectedSet.Vertices.Count )
+            {
+               Vector3 selectedVert = selectedSet.Vertices[selectedIndex];
+               if( selectedSet.Is2D )
+                  selectedPointString = $"[{selectedIndex}]: ( {selectedVert.X:G3}, {selectedVert.Y:G3} )";
+               else
+                  selectedPointString = $"[{selectedIndex}]: ( {selectedVert.X:G3}, {selectedVert.Y:G3}, {selectedVert.Z:G3} )";
+            }
          }
          this.statusSelectedPoint.Text = selectedPointString;
 

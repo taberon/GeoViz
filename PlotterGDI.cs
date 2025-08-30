@@ -1,7 +1,8 @@
 using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Collections.Generic;
+
+using MetalHelix.Geometry;
 
 namespace GeometryVisualizer
 {
@@ -87,10 +88,46 @@ namespace GeometryVisualizer
          set { this.gridDivisionMinor = value; }
       }
 
+      VertexSet defaultSet;
+      /// <summary> Get the default plot set. </summary>
+      public VertexSet DefaultPlotSet
+      {
+         get { return this.defaultSet; }
+      }
 
-      List<PointF> points = new List<PointF>();
+      Face defaultFace;
+      /// <summary> Get the default plot face -- index list. </summary>
+      public Face DefaultPlotFace
+      {
+         get { return this.defaultFace; }
+      }
+
       /// <summary> Collection of points to be drawn. </summary>
-      public List<PointF> Points { get { return this.points; } }
+      public List<Vector3> Points
+      {
+         get { return this.defaultSet.Vertices; }
+      }
+
+      /// <summary> Collection of line indices to be drawn. </summary>
+      public List<int> Lines // int[][] -- use plain array get/set for short-hand def of "mini" (degenerate) faces..?
+      {
+         get { return this.defaultFace.Indices; }
+      }
+
+      List<VertexSet> vertexSets;
+      /// <summary> Collection of custom VertexSet instances to be drawn. </summary>
+      public List<VertexSet> VertexSets
+      {
+         get { return this.vertexSets; }
+      }
+
+      VertexSet selectedSet;
+      /// <summary> Gets or sets the currently selected VertexSet. </summary>
+      public VertexSet SelectedSet
+      {
+         get { return this.selectedSet; }
+         set { this.selectedSet = value; }
+      }
 
       int selectedIndex;
       /// <summary> Gets or sets a single selected point, to be drawn in a different highlight color. </summary>
@@ -99,7 +136,7 @@ namespace GeometryVisualizer
          get
          {
             // validate the selected index with actual point count
-            if( this.selectedIndex >= this.points.Count )
+            if( this.selectedSet != null && this.selectedIndex >= this.selectedSet.Count )
                this.selectedIndex = -1;
 
             return this.selectedIndex;
@@ -133,6 +170,12 @@ namespace GeometryVisualizer
          this.plotCenter = new PointF( 0f, 0f );
          this.viewSize = new Size( 100, 100 );
 
+         this.defaultSet = new VertexSet();
+         this.defaultFace = new Face();
+         this.defaultSet.Faces.Add( this.defaultFace );
+         this.vertexSets = new List<VertexSet>();
+
+         this.selectedSet = this.defaultSet;
          this.selectedIndex = -1;
       }
 
@@ -140,31 +183,64 @@ namespace GeometryVisualizer
 
       #region Drawing
 
+      RectangleF CalculateVertexBounds( List<Vector3> vertices )
+      {
+         Vector3 min = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
+         Vector3 max = new Vector3( float.MinValue, float.MinValue, float.MinValue );
+
+         foreach( Vector3 vertex in vertices )
+         {
+            if( vertex.X < min.X )
+               min.X = vertex.X;
+            if( vertex.X > max.X )
+               max.X = vertex.X;
+
+            if( vertex.Y < min.Y )
+               min.Y = vertex.Y;
+            if( vertex.Y > max.Y )
+               max.Y = vertex.Y;
+
+            if( vertex.Z < min.Z )
+               min.Z = vertex.Z;
+            if( vertex.Z > max.Z )
+               max.Z = vertex.Z;
+         }
+
+         // TODO: use a 3d bounding-box...
+         RectangleF bounds = RectangleF.FromLTRB( min.X, min.Y, max.X, max.Y );
+         return bounds;
+      }
+
+      RectangleF GetAllVertexBounds()
+      {
+         RectangleF allBounds = CalculateVertexBounds( this.defaultSet.Vertices );
+
+         foreach( VertexSet set in this.vertexSets )
+         {
+            RectangleF setBounds = CalculateVertexBounds( set.Vertices );
+
+            float minX = Math.Min( allBounds.Left, setBounds.Left );
+            float maxX = Math.Max( allBounds.Right, setBounds.Right );
+            float minY = Math.Min( allBounds.Top, setBounds.Top );
+            float maxY = Math.Max( allBounds.Bottom, setBounds.Bottom );
+
+            allBounds.X = minX;
+            allBounds.Width = maxX - minX;
+            allBounds.Y = minY;
+            allBounds.Height = maxY - minY;
+         }
+
+         return allBounds;
+      }
+
       /// <summary> Automatically set visualization scale for current points. </summary>
       public void AutoScaleForPoints()
       {
-         // calculate current point world bounds
-         float minPointX = float.MaxValue;
-         float minPointY = float.MaxValue;
-         float maxPointX = float.MinValue;
-         float maxPointY = float.MinValue;
+         RectangleF bounds = GetAllVertexBounds();
 
-         foreach( PointF point in this.points )
-         {
-            if( point.X < minPointX )
-               minPointX = point.X;
-            if( point.X > maxPointX )
-               maxPointX = point.X;
-            if( point.Y < minPointY )
-               minPointY = point.Y;
-            if( point.Y > maxPointY )
-               maxPointY = point.Y;
-         }
-
-         RectangleF bounds = RectangleF.FromLTRB( minPointX, minPointY, maxPointX, maxPointY );
-
-         // ensure bounds are valid
-         if( bounds.IsEmpty || float.IsInfinity( bounds.Width ) || float.IsInfinity( bounds.Height ) )
+         // ensure bounds are valid -- not empty and not having width or height of infinity
+         if( ( bounds.Width == 0f && bounds.Height == 0f )
+            || float.IsInfinity( bounds.Width ) || float.IsInfinity( bounds.Height ) )
          {
             bounds = new RectangleF( -1f, -1f, 11f, 11f ); // set default bounds
          }
@@ -209,15 +285,20 @@ namespace GeometryVisualizer
       {
          SetupTransform( grfx );
 
+         // TODO: DrawGrid method...
+
          // calculate current pixel size
          float pixelSizeX = 1f / this.plotScale.X;
          float pixelSizeY = 1f / this.plotScale.Y;
+         float pixelSizeAvg = ( pixelSizeX + pixelSizeY ) / 2f;
 
          // create pen objects
          Pen penAxisX = new Pen( Color.Maroon, pixelSizeX * 2f );
          Pen penAxisY = new Pen( Color.ForestGreen, pixelSizeY * 2f );
          Pen penGrid = new Pen( Color.Gray, 0f );
+         penGrid.Width = 0f;
          Pen penGrid2 = new Pen( Color.Silver, 0f );
+         penGrid2.Width = 0f;
 
          // find maximum plot dimension
          float maxPlotDim = Math.Max( this.PlotSize.Width, this.PlotSize.Height );
@@ -291,6 +372,21 @@ namespace GeometryVisualizer
          penGrid.Dispose();
 
 
+         // draw vertex sets
+
+         Pen linePen = new Pen( Color.RoyalBlue, pixelSizeAvg * 2f );
+
+         // draw default vertex set faces/lines
+         DrawSetFaceLines( grfx, linePen, this.defaultSet );
+
+         // draw vertex set faces/lines
+         for( int i = 0; i < this.vertexSets.Count; ++i )
+         {
+            DrawSetFaceLines( grfx, linePen, this.vertexSets[i] );
+         }
+
+         linePen.Dispose();
+
          // each point will be drawn with a radius of these many pixels :)
          float pointRad = 4;
 
@@ -299,25 +395,95 @@ namespace GeometryVisualizer
          float pointRadiusY = pixelSizeY * pointRad;
 
          // create brush for filling point circles
-         Brush brush = null;
          Brush defaultBrush = new SolidBrush( Color.Black );
          Brush selectedBrush = new SolidBrush( Color.DeepSkyBlue );
+         Pen selectedPen = new Pen( Color.DeepSkyBlue, 0f );
 
-         // draw points
-         for( int i = 0; i < this.points.Count; ++i )
+         // draw default vertex set points
+         DrawSetPoints( grfx, this.defaultSet, pointRadiusX, pointRadiusY, defaultBrush, selectedBrush, selectedPen );
+
+         // draw vertex set points
+         for( int i = 0; i < this.vertexSets.Count; ++i )
          {
-            brush = i == this.selectedIndex ? selectedBrush : defaultBrush;
-
-            PointF p = this.points[i];
-            if( !this.drawCircularPoints )
-               grfx.FillRectangle( brush, p.X - pointRadiusX, p.Y - pointRadiusY, pointRadiusX * 2, pointRadiusY * 2 );
-            else
-               grfx.FillEllipse( brush, p.X - pointRadiusX, p.Y - pointRadiusY, pointRadiusX * 2, pointRadiusY * 2 );
+            DrawSetPoints( grfx, this.vertexSets[i], pointRadiusX, pointRadiusY, defaultBrush, selectedBrush, selectedPen );
          }
 
          // release brush resources
          defaultBrush.Dispose();
          selectedBrush.Dispose();
+      }
+
+      void DrawSetFaceLines( Graphics grfx, Pen linePen, VertexSet vertexSet )
+      {
+         Face currFace;
+         Vector3 start, end;
+
+         linePen.Color = vertexSet.LineColor.IsEmpty ? Color.RoyalBlue : vertexSet.LineColor;
+
+         // check if custom faces defined for vertices
+         if( vertexSet.FaceCount > 0 )
+         {
+            // draw faces for set
+            for( int f = 0; f < vertexSet.Faces.Count; ++f )
+            {
+               currFace = vertexSet.Faces[f];
+               for( int i = 0; i < currFace.Indices.Count - 1; ++i )
+               {
+                  start = vertexSet.Vertices[currFace.Indices[i]];
+                  end = vertexSet.Vertices[currFace.Indices[i + 1]];
+                  grfx.DrawLine( linePen, start.ToPointF(), end.ToPointF() );
+               }
+               // draw last closing line
+               if( currFace.Indices.Count > 2 )
+               {
+                  start = vertexSet.Vertices[currFace.Indices[currFace.Indices.Count - 1]];
+                  end = vertexSet.Vertices[currFace.Indices[0]];
+                  grfx.DrawLine( linePen, start.ToPointF(), end.ToPointF() );
+               }
+            }
+         }
+         else if( vertexSet.IsPolyline && vertexSet.Vertices.Count > 1 )
+         {
+            for( int i = 0; i < vertexSet.Vertices.Count - 1; ++i )
+            {
+               start = vertexSet.Vertices[i];
+               end = vertexSet.Vertices[i + 1];
+               grfx.DrawLine( linePen, start.ToPointF(), end.ToPointF() );
+            }
+            // draw last closing line
+            if( vertexSet.IsClosed && vertexSet.Vertices.Count > 2 )
+            {
+               start = vertexSet.Vertices[vertexSet.Vertices.Count - 1];
+               end = vertexSet.Vertices[0];
+               grfx.DrawLine( linePen, start.ToPointF(), end.ToPointF() );
+            }
+         }
+      }
+
+      private void DrawSetPoints( Graphics grfx, VertexSet vertexSet, float pointRadiusX, float pointRadiusY, Brush defaultBrush, Brush selectedBrush, Pen selectedPen )
+      {
+         bool isSelectedSet = this.selectedSet == vertexSet;
+
+         Brush activeBrush = null;
+         PointF pt;
+
+         // draw points
+         for( int i = 0; i < vertexSet.Vertices.Count; ++i )
+         {
+            activeBrush = isSelectedSet && i == this.selectedIndex ? selectedBrush : defaultBrush;
+
+            pt = vertexSet.Vertices[i].ToPointF();
+
+            if( !this.drawCircularPoints )
+               grfx.FillRectangle( activeBrush, pt.X - pointRadiusX, pt.Y - pointRadiusY, pointRadiusX * 2, pointRadiusY * 2 );
+            else
+               grfx.FillEllipse( activeBrush, pt.X - pointRadiusX, pt.Y - pointRadiusY, pointRadiusX * 2, pointRadiusY * 2 );
+
+            if( isSelectedSet && i == this.selectedIndex )
+            {
+               grfx.DrawEllipse( selectedPen, pt.X - pointRadiusX * 2, pt.Y - pointRadiusY * 2, pointRadiusX * 4, pointRadiusY * 4 );
+            }
+         }
       }
 
       #endregion Drawing
@@ -359,5 +525,13 @@ namespace GeometryVisualizer
       }
 
       #endregion Point Conversion
+   }
+
+   static class Vector3Extensions
+   {
+      public static PointF ToPointF( this Vector3 vector )
+      {
+         return new PointF( vector.X, vector.Y );
+      }
    }
 }
