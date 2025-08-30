@@ -9,8 +9,8 @@ namespace GeometryVisualizer
 {
    public class MainForm : Form
    {
-      const string AppName = "Geometry Visualizer v0.67";
-      const string AppDate = "23 May 2021";
+      const string AppName = "Geometry Visualizer v0.68";
+      const string AppDate = "25 August 2025";
 
       PlotView2D plotView;
       StatusStrip statusBar;
@@ -25,6 +25,7 @@ namespace GeometryVisualizer
       MenuItem menuItem_Axis;
       MenuItem menuItem_Grid;
       MenuItem menuItem_MaintainAspect;
+      MenuItem menuItem_ViewTransparent;
       MenuItem menuItem_PointsEdit;
       MenuItem menuItem_PointsPaste;
       MenuItem menuItem_PointsClear;
@@ -167,6 +168,10 @@ namespace GeometryVisualizer
          this.menuItem_MaintainAspect.Checked = true; // set default true
 
 
+         viewMenu.MenuItems.Add( "-" );
+         this.menuItem_ViewTransparent = new MenuItem( "Transparent (Overlay)", MenuItemClick, Shortcut.CtrlT );
+         viewMenu.MenuItems.Add( this.menuItem_ViewTransparent );
+
          MenuItem helpMenu = new MenuItem( "Help" );
          this.Menu.MenuItems.Add( helpMenu );
 
@@ -201,6 +206,12 @@ namespace GeometryVisualizer
             clickItem.Checked = !clickItem.Checked;
             this.plotView.Plotter.MaintainAspect = clickItem.Checked;
             redraw = true;
+         }
+         else if( clickItem == this.menuItem_ViewTransparent )
+         {
+            bool enabled = !this.menuItem_ViewTransparent.Checked;
+            this.menuItem_ViewTransparent.Checked = enabled;
+            this.Opacity = enabled ? 0.50f : 1f;
          }
          else if( clickItem == this.menuItem_PointsEdit )
          {
