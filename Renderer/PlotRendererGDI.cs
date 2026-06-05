@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Collections.Generic;
 
 using MetalHelix.Geometry;
+using System.Linq;
 
 namespace GeometryVisualizer
 {
@@ -266,7 +267,7 @@ namespace GeometryVisualizer
          float pointRadiusY = pixelSizeY * pointRad;
 
          // create brush for filling point circles
-         Brush defaultBrush = new SolidBrush( Color.Black );
+         SolidBrush defaultBrush = new SolidBrush( Color.Black );
          Brush selectedBrush = new SolidBrush( Color.DeepSkyBlue );
          Pen selectedPen = new Pen( Color.DeepSkyBlue, 0f );
 
@@ -291,6 +292,16 @@ namespace GeometryVisualizer
          Vector3 start, end;
 
          linePen.Color = vertexSet.LineColor.IsEmpty ? Color.RoyalBlue : vertexSet.LineColor;
+
+         // check if closed polyline should be drawn filled
+         if( vertexSet.IsPolyline && vertexSet.IsClosed && vertexSet.Vertices.Count > 2
+            && !vertexSet.FillColor.IsEmpty )
+         {
+            SolidBrush fillBrush = new SolidBrush( vertexSet.FillColor );
+            PointF[] pts = vertexSet.Vertices.Select( v => v.ToPointF() ).ToArray();
+            grfx.FillPolygon( fillBrush, pts );
+            fillBrush.Dispose();
+         }
 
          // check if custom faces defined for vertices
          if( vertexSet.FaceCount > 0 )
@@ -332,12 +343,14 @@ namespace GeometryVisualizer
          }
       }
 
-      private void DrawSetPoints( Graphics grfx, VertexSet vertexSet, float pointRadiusX, float pointRadiusY, Brush defaultBrush, Brush selectedBrush, Pen selectedPen )
+      private void DrawSetPoints( Graphics grfx, VertexSet vertexSet, float pointRadiusX, float pointRadiusY, SolidBrush defaultBrush, Brush selectedBrush, Pen selectedPen )
       {
          bool isSelectedSet = this.plotData.SelectedSet == vertexSet;
 
          Brush activeBrush = null;
          PointF pt;
+
+         defaultBrush.Color = vertexSet.PointColor.IsEmpty ? Color.Black : vertexSet.PointColor;
 
          // draw points
          for( int i = 0; i < vertexSet.Vertices.Count; ++i )

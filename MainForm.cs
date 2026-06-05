@@ -359,11 +359,15 @@ namespace GeometryVisualizer
             VertexSet selectedSet = this.PlotView.PlotData.SelectedSet;
             if( selectedIndex < selectedSet.Vertices.Count )
             {
+               string selectedLabel = null;
+               if( selectedSet.Label != null )
+                  selectedLabel = $" - \"{selectedSet.Label}\"";
+
                Vector3 selectedVert = selectedSet.Vertices[selectedIndex];
                if( selectedSet.Is2D )
-                  selectedPointString = $"[{selectedIndex}]: ( {selectedVert.X:G3}, {selectedVert.Y:G3} )";
+                  selectedPointString = $"[{selectedIndex}]: ( {selectedVert.X:G3}, {selectedVert.Y:G3} ){selectedLabel}";
                else
-                  selectedPointString = $"[{selectedIndex}]: ( {selectedVert.X:G3}, {selectedVert.Y:G3}, {selectedVert.Z:G3} )";
+                  selectedPointString = $"[{selectedIndex}]: ( {selectedVert.X:G3}, {selectedVert.Y:G3}, {selectedVert.Z:G3} ){selectedLabel}";
             }
          }
          this.statusSelectedPoint.Text = selectedPointString;

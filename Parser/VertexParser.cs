@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Drawing;
 using System.Collections.Generic;
 using System.Text;
 
@@ -52,11 +53,22 @@ namespace GeometryVisualizer
          bool decimalAdded = false;
          bool negativeSign = false;
          bool exponentNotation = false;
+         bool hexadecimalNotation = false;
 
+         // parse word symbols separated by colon as key/value pairs
          StringBuilder currWordString = new StringBuilder();
+         Dictionary<string, object> keyValueOptions = new Dictionary<string, object>();
+         string currKey = null;
 
          void EmitFloat()
          {
+            if( hexadecimalNotation && currKey != null )
+            {
+               int intVal = Convert.ToInt32( currFloatString.ToString(), 16 );
+               keyValueOptions[currKey] = intVal;
+               currKey = null;
+            }
+
             // emit current float value
             if( currFloatString.Length > 0 && float.TryParse( currFloatString.ToString(), out float floatVal ) )
             {
@@ -68,6 +80,7 @@ namespace GeometryVisualizer
             decimalAdded = false;
             negativeSign = false;
             exponentNotation = false;
+            hexadecimalNotation = false;
          }
 
          void EmitVertex()
@@ -85,10 +98,44 @@ namespace GeometryVisualizer
             currFloatList.Clear();
          }
 
+         bool TryGetOptionColor( string keyName, out Color color )
+         {
+            color = Color.Transparent;
+            object colorInfo;
+            if( keyValueOptions.TryGetValue( keyName, out colorInfo ) )
+            {
+               if( colorInfo is string colorString )
+                  color = Color.FromName( colorString );
+               else if( colorInfo is int colorArgb )
+                  color = Color.FromArgb( colorArgb );
+            }
+            return color != Color.Transparent;
+         }
+
          void EmitVertexSet()
          {
             // check to emit current vertex
             EmitVertex();
+
+            // check for additional options
+            Color color;
+            if( TryGetOptionColor( "color", out color )
+               || TryGetOptionColor( "linecolor", out color ) )
+            {
+               currVertexSet.LineColor = color;
+            }
+            if( TryGetOptionColor( "fillcolor", out color ) )
+            {
+               currVertexSet.FillColor = color;
+            }
+            if( TryGetOptionColor( "pointcolor", out color ) )
+            {
+               currVertexSet.PointColor = color;
+            }
+            if( keyValueOptions.TryGetValue( "label", out object label ) )
+            {
+               currVertexSet.Label = label.ToString();
+            }
 
             // emit current vertex set (vertex loop)
             if( currVertexSet.Count > 0 )
@@ -100,8 +147,7 @@ namespace GeometryVisualizer
 
             // reset current vertex set parse state
             currVertexSet.IsPolyline = false;
-            currVertexSet.IsClosed = false;
-            // TODO: reset colors..?
+            currVertexSet.IsClosed = false;            
          }
 
          char GetMatchingBrace( char braceChar )
@@ -116,6 +162,27 @@ namespace GeometryVisualizer
                case ']': return '[';
                default: return ' ';
             }
+         }
+
+         void EmitWord()
+         {
+            // emit current word string
+            if( currWordString.Length > 0 )
+            {
+               string word = currWordString.ToString();
+               if( currKey == null )
+               {
+                  currKey = word;
+               }
+               else
+               {
+                  keyValueOptions[currKey] = word;
+                  currKey = null;
+               }
+            }
+
+            // reset word parse state
+            currWordString.Clear();
          }
 
          char c;
@@ -164,20 +231,40 @@ namespace GeometryVisualizer
                   }
                   break;
                }
-               // allow one 'e' or "E" for scientific/exponent notation
-               case 'e':
-               case 'E':
+               // check for alphabetic characters
+               case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g':
+               case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n':
+               case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u':
+               case 'v': case 'w': case 'x': case 'y': case 'z':
                {
+                  if( hexadecimalNotation && (int)c >= (int)'a' && (int)c <= (int)'f' )
+                  {
+                     currFloatString.Append( c );
+                  }
+                  // allow one 'e' or "E" for scientific/exponent notation
                   // allowed after at least one other valid number and a decimal point
-                  if( !exponentNotation && currFloatString.Length > 1 && decimalAdded )
+                  else if( c == 'e' && !exponentNotation && currFloatString.Length > 1 && decimalAdded )
                   {
                      currFloatString.Append( c );
                      exponentNotation = true;
                   }
+                  else if( c == 'x' && currFloatString.Length == 1 && currFloatString[0] == '0'
+                     && !hexadecimalNotation )
+                  {
+                     currFloatString.Append( c );
+                     hexadecimalNotation = true;
+                  }
                   else
                   {
-                     EmitFloat();
+                     // add char to current word string
+                     currWordString.Append( c );
                   }
+                  break;
+               }
+               case ':':
+               {
+                  // emit word string as symbol if successfuly parsed and ending with colon
+                  EmitWord();
                   break;
                }
                // white-space -- delimit float values
@@ -193,6 +280,7 @@ namespace GeometryVisualizer
                case '\r':
                {
                   EmitVertex();
+                  EmitWord();
                   break;
                }
                // track parenthesis/brace groups

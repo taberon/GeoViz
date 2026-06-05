@@ -43,6 +43,8 @@ namespace GeometryVisualizer
 
       public Color FillColor { get; set; }
 
+      public string Label { get; set; }
+
       public VertexSet()
       {
          this.vertices = new List<Vector3>();
@@ -62,6 +64,7 @@ namespace GeometryVisualizer
          this.PointColor  = source.PointColor;
          this.LineColor = source.LineColor;
          this.FillColor = source.FillColor;
+         this.Label = source.Label;
       }
 
       /// <summary> Add a single vertex specifying an X, Y, and Z value. </summary>
@@ -132,9 +135,35 @@ namespace GeometryVisualizer
          return verticesAdded;
       }
 
+      string GetColorText( Color color )
+      {
+         if( color.IsNamedColor )
+            return color.Name;
+         else
+            return $"0x{color.ToArgb().ToString("x")}";
+      }
+
       public string GenerateText()
       {
          StringBuilder text = new StringBuilder();
+
+         // add vertex set options
+         if( !this.LineColor.IsEmpty )
+         {
+            text.AppendLine( $"LineColor: {GetColorText( this.LineColor ) }" );
+         }
+         if( !this.PointColor.IsEmpty )
+         {
+            text.AppendLine( $"PointColor: {GetColorText( this.PointColor ) }" );
+         }
+         if( !this.FillColor.IsEmpty )
+         {
+            text.AppendLine( $"FillColor: { GetColorText( this.FillColor ) }" );
+         }
+         if( !string.IsNullOrWhiteSpace( this.Label ) )
+         {
+            text.AppendLine( $"Label: {this.Label}" );
+         }
 
          if( this.IsPolyline )
          {

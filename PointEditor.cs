@@ -531,6 +531,7 @@ namespace GeometryVisualizer
          foreach( VertexSet vertSet in this.vertexSets )
          {
             this.textArea.AppendText( vertSet.GenerateText() );
+            this.textArea.AppendText( Environment.NewLine );
          }
 
          //// write current points to text area
