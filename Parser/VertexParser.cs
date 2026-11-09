@@ -218,9 +218,9 @@ namespace GeometryVisualizer
                // allow one negative sign
                case '-':
                {
-                  // allowed either at start of float or immediately after "e" or "E" char for exponent notation,
-                  // in which case still only one negative sign that won't appear at start
-                  if( !negativeSign && ( currFloatString.Length == 0 || char.ToLower( currFloatString[currFloatString.Length - 1] ) == 'e' ) )
+                  // allowed at start of float and/or immediately after "e" or "E" char for exponent notation
+                  if( ( !negativeSign && currFloatString.Length == 0 )
+                     || ( decimalAdded && char.ToLower( currFloatString[currFloatString.Length - 1] ) == 'e' ) )
                   {
                      currFloatString.Append( c );
                      negativeSign = true;
